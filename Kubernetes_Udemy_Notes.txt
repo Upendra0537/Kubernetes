@@ -8,7 +8,7 @@ Kubernetes Courses
 Container 
 - running instances of Docker images
 - Contains the application with Dependencies all packaged
-- runs on Docker
+- runs on Docker 
 - Docker Containers share the underlying kernal
 
 
@@ -23,13 +23,13 @@ Container Orchestration
 - Connectivity between Containers - High availability
 - Scale up/Down of the Container - Load Balance
 - 
-Example Tools - Kubernetes, DockerSwarm, MESOS
+Example Tools - Kubernetes, DockerSwarm, MESOS(Apache)
 
 
 Kubernetes
 - Node/Minions - physical/virtual machine
 	- where kubernetes is installed
-	- contians containers
+	- contains containers
 - Cluster - contains multiple Nodes
 	- load balance of nodes and High availability
 - Master - another node inside the cluster
@@ -72,10 +72,12 @@ PODS
 - mutliple nodes in a single cluster - for further more scalability and reliability required
 - one container per POD (general practice) - no restriction - can have helper container- chaircar container - gets created/deleted along with main container
 - NO adding of additional containers to PODS to scale up
+- Will have it's own IP address and the node in which the pod is hosted will also have an IP
 CMDs
 kubectl run <<pod name>> --image=<<docker image>>     - gets a pod created
 kubectl get pods                                      - gets pod details with status, Ready = running containers in a pod/total containres in a pod
-kubectl describe pod <<pod name>>                     - gets more details with IP address
+kubectl get pods -o wide							- gets pod details with Node and Pod IP address 
+kubectl describe pod <<pod name>>                     - gets more details with POD/Node IP address, Container details, tags
 kubectl delete pod <<pod name>>
 kubectl run <<pod name> --image=<<docker image>> --dry-run=client -o yaml > pod.yaml  - to create an pod definition yml file without creating the pod
 kubectl edit pod <<pod name>>                     - to make changes to pod details
@@ -86,10 +88,8 @@ YAML
 	- Map/Dictionary - Key value pairs (a: b) - order doesnt considered
 
 
-POD Creation - using YAML
-
-file name: pod-def.yml
-
+POD Creation - using YAML - file name: pod-def.yml
+*****************
 apiVersion: v1					// must
 kind: Pod					// must - defined words
 metadata:					// must
@@ -102,10 +102,11 @@ spec:						// must - specifications
 	- name: <<conainer name>>
 	  Image: <<Image Name>>
 
-CMD
+CMD -  to create/apply a pod 
  kubectl create -f pod-def.yml
  kubectl apply -f pod-def.yml
 	
+
 Controller
 ------------
 Replication Controller/Replica Set
@@ -117,10 +118,8 @@ Replication Controller/Replica Set
 - If more pods are created than the replicas, the replicaset will terminate the new pod which is getting created
 
 
-Replication Controller Creation - using YAML
-
-file name: rc-def.yml
-
+Replication Controller Creation - using YAML - file name: rc-def.yml
+************************
 apiVersion: v1					// must
 kind: ReplicationController			// must - defined words
 metadata:					// must
@@ -146,10 +145,8 @@ CMD
  kubectl get replicationcontroller
 
 
-ReplicaSet Creation - using YAML
-
-file name: rs-def.yml
-
+ReplicaSet Creation - using YAML - file name: rs-def.yml
+**************************
 apiVersion: apps/v1				// must - different from RC
 kind: ReplicaSet				// must - defined words
 metadata:					// must
@@ -163,37 +160,41 @@ spec:
 			name: myapp-pod				
 			labels:					
 				app: myapp
-				type: front-end
+				type: front-end                 // PODS Template label should match with the selector label 
 		spec:						
 			containers:
 				- name: <<conainer name>>
 				  Image: <<Image Name>>				
 	- replicas: <<number of replicas>                                //replicas to be created
-	- selector				// must - different from RC - used for handling replications which are not created as part of the replicaset 
+	- selector:				// must - different from RC - used for handling replications which are not created as part of the replicaset 
 		matchLabels:			// looks for matching labels for the ReplicaSet to handle 
 			type: front-end
 
 
 CMD
  kubectl create -f rs-def.yml
- kubectl get replicaset
+ kubectl get replicaset  or kubectl get rs
  kubectl delete replicaset myapp-rs
- kubectl edit replicaset myapp-rs               // to update the replicaset 
+ kubectl edit replicaset myapp-rs               // to update the replicaset running file and the effect is immidiate  
  kubectl replace -f rs-def.yml       		// to run the updated rs-def.yml and run
  kubectl scale --replicas=6 -f rs-def.yml 	// to run the updated replicas option but rs-def.yml will not be updated
  kubectl scale --replicas=6 replicaset myapp-rs  // to run the updated replicas option but rs-def.yml will not be updated
+ kubectl explain <<pods/replicasets>>                    // help text
 
 
 Deployment
 --------------
+- Used for
+   - deploy multiple instances
+   - rolling updates 
+   - roll back option
+   - pause -> Make changes -> Apply changes
 - Deployment is higher in the hierarchy
 - Deployment -> replicaset -> Pods -> containers
 - deploy-def.yml file is similar to rs-def.yml file with kind as Deployment
 
-Deployment Creation - using YAML
-
-file name: deploy-def.yml
-
+Deployment Creation - using YAML - file name: deploy-def.yml
+***********************
 apiVersion: apps/v1				// must 
 kind: Deployment   				// must - defined words
 metadata:					// must
@@ -213,7 +214,7 @@ spec:
 				- name: <<conainer name>>
 				  Image: <<Image Name>>				
 	- replicas: <<number of replicas>                                //replicas to be created
-	- selector				
+	- selector:				
 		matchLabels:			// looks for matching labels for the ReplicaSet to handle 
 			type: front-end
 
@@ -223,6 +224,8 @@ CMD
  kubectl get deployments
  kubectl get all 				// to get all the objects created - deployment/replicaset/pods
  kubectl apply -f deploy-def.yml 		// to update the deployment
+ kubectl apply -f deploy-def.yml --record       // to record the cause of the deployment in rollout history "Change Cause"
+
 Rollout Command
 CMD
  kubectl rollout status deployment/myapp-deploy               // to check the rollout status of all the replicasets
@@ -248,7 +251,7 @@ Networking
 - Cluster Networking
 	- All Pods can communicate to one another without NAT
 	- All Nodes can communicate with Containers and viceversa without NAT
-- Routing softwares are used in cluster to be able to set unique different IP's for Nodes and Pods
+- Routing softwares are used in cluster to be able to set unique different IP's for Nodes and Pods(cisco, cilium, flannel, vmware nsx, calico)
 
 Services
 - Enable communication between components
@@ -259,10 +262,15 @@ Services
 	- Port - Service Port number
 	- Node Port - 30000 - 32767 Port Numbers of the Node
 	- when new pods are added, no changes are required as the app in myapp-service matches with myapp-pod
+     - When new nodes are added, no changes are required as the service spans across all the nodes and uses the same port
 
-NodePort Creation - using YAML
+Laptop(<<ip address>>) -> Nodes(<<ip address:portnumber>>) -> service(<<ip addresss:portnumber>>) -> pod(<<ip address:portnumber>>)
+Once service is setup we can use our laptop to curl into the pod using "curl <<Node ip address>>:<<Node Port Number>>"
+Services act as loadbalancers using random algorithm and sessionAffinity: Yes
 
-file name: nodeport-def.yml
+NodePort Creation - using YAML - file name: nodeport-def.yml
+******************
+NodePort is use specifically for external connectivity
 
 apiVersion: v1					// must 
 kind: Service   				// must - defined words
@@ -274,7 +282,7 @@ spec:
 		- targetPort: 80		// Pod Port number 
 		  port: 80			// must - service port number
 		  nodeport: 30008		// Node port number
-	selector				// must 
+	selector:				// must 
 		app: myapp
 		type: front-end		
 
@@ -283,13 +291,12 @@ CMD
  kubectl get services					// Gets the service details with Cluster IP and Port details of node and service
  
 
+Cluster IP - Virtual IP for communication between server
+*************
+	- if there are multiple POD running the same application like a DB or Front-end or backend. we need to have a single point of reference rather than multiple PODs for the application to work. Cluster IP helps with it. It give one IP:port for each set of similar pods (same labels)
+ClusterIP is the default port type if not specified and is used for internal connectivity
 
-- Cluster IP - Virtual IP for communication between server
-	- if there are multiple POD running the same applicaiton like a DB or Front-end or backend. we need to have a single point of reference rather than multiple PODs for the application to work. Cluster IP helps ith it
-
-Cluster IP Creation - using YAML
-
-file name: cluster-def.yml
+Cluster IP Creation - using YAML- file name: cluster-def.yml
 
 apiVersion: v1					// must 
 kind: Service   				// must - defined words
@@ -305,9 +312,28 @@ spec:
 		type: front-end		
 
 
-- LoadBalancer - 
+LoadBalancer - Only worked with Cloud native load balancers
+*************
+
+Works similar to NodePort.. but if there are multiple nodes on which same application is hosted on pods. we will have multiple <<Node IP address>>:<<Single port>> which will give the same access. Load Balancer helps to take these multiple nodes/ports to a single IP:port or URL
+
+apiVersion: v1					// must 
+kind: Service   				// must - defined words
+metadata:					// must
+	name: myapp-service			// Must Name
+spec:
+	type: LoadBalancer				// Unique Node port def
+	ports: 
+		- targetPort: 80		// Pod Port number 
+		  port: 80			// must - service port number
+		  nodeport: 30008		// Node port number
+	selector:				// must 
+		app: myapp
+		type: front-end		
 
 
 
 Kubernetes on AWS
 ---------------------
+Sample Project : https://github.com/kodekloudhub/example-voting-app
+k8s-specifications folder for deployments/services for cloud
