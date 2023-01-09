@@ -1,0 +1,963 @@
+Kubernetes for Absolute Beginners - Mumshad Mannambeth
+
+Kubernetes Courses
+- basics
+- Developer
+- Admin
+
+Container 
+- running instances of Docker images
+- Contains the application with Dependencies all packaged
+- runs on Docker 
+- Docker Containers share the underlying kernal
+
+
+Docker 
+- Runs on OS which is hosted on a Hardware(Kernal)
+- different from Hypervisor(Virtual machines) which allows multiple OS to be installed tied up with application and its dependecies - EC2
+
+docker built  <<docker>
+docker run <<docker Image>> - creates a container - but container is run time environment for an application so if the application is not running the container will stop.
+
+"CMD <<command>> <<parameter>> " statement in the docker file helps to specify the next steps once the container is up. It needs a parameter which can be passed as a argument to docker run command or have it hardcoded inside the docker file. Any parameter passed will override the CMD command in the docker file
+"Entrypoint " statement is used to hardcode the partial or full cmd in the docker file. if a parameter is passed it will append to the existing commands.
+
+
+Container Orchestration 
+- Automatically deploying and Managing Containers
+- Connectivity between Containers - High availability
+- Scale up/Down of the Container - Load Balance
+- 
+Example Tools - Kubernetes, DockerSwarm, MESOS(Apache)
+mdr
+
+Kubernetes
+- Node/Minions - physical/virtual machine
+	- where kubernetes is installed
+	- contains containers
+- Cluster - contains multiple Nodes
+	- load balance of nodes and High availability
+- Master - another node inside the cluster
+	- orchesterates all the other nodes in the cluster.
+
+Components
+- API Server - front end of Kubernetes cluster - CLI, UI
+- etcd - Key-value store - metadata of nodes, handles logs
+- Scheduler - distributes work across containers, new containers are assigned nodes
+- Controller - Brain, takes decisions to bring up new containers
+- Container runtime - Docker
+- Kubelet - Agents which runs on the Cluster, takes care of containers if they are running
+
+Nodes
+- Worker Nodes
+	- Kubernetes
+	- Container Runtime - Docker
+	- Kubelet - agent installed to share nodes information
+- Master Nodes
+	- Kubernetes
+	- kube-apiserver -  connects with worker nodes kubelets
+	- etcd
+	- controller
+	- Scheduler
+
+kubectl
+- kubectl run <<application>> - to deploy an application on cluster
+- kubectl  cluster-info
+- kubectl get nodes  - all the list of nodes
+
+minikube - for practice with a single node which has both Master and worker components - local
+kubeadm - for multiple nodes - local
+
+Namespaces
+-----------
+Default
+kube-system
+kube-public
+
+in Default name space "db-service"
+in Dev Names space for the Db service in Default to use "db-service.dev.svc.cluster.local"
+where 
+   cluster.local - Domain(DNS)
+   svc - service type
+   dev - namespace
+   db-service - service name
+
+CMD
+kubectl create namespace dev     // to create a namespace
+kubectl config set-context $(kubectl config current-context) --namespace=dev         // to switch to dev as the default namespace
+kubectl get pods --namespace=<<namespace>>
+kubectl get pods --all-namespace       OR  kubectl get pods -A               // to get all the pods from all the namespaces
+
+namespace: dev  can be added in the metadata tag in the yaml file of pod/resultset/deployment/service to restrict
+
+File Name: namespace-dev.yml
+******************************
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+
+kubectl create -f namespace-dev.yml    //to create a namespace using yaml file
+
+File Name: Compute-quota.yml
+**************************
+apiVersion: v1
+kind: ResouceQuota
+metadata:
+  name: compute-quota
+  namespace: dev
+spec:
+  hard:
+    pods: "10"
+    requests.cpu: "4"
+    requests.memory: 5Gi
+    limits.cpu: "10"
+    limits.memory: 10Gi
+
+kubectl create -f compute-quota.yml    // to create quota limits for the Dev Namespace
+
+PODS
+-------
+- smallest unit in kubernetes
+- containers are hosted into PODS
+- each node can contain multiple PODS which hosts instances of the application - when scalability required
+- mutliple nodes in a single cluster - for further more scalability and reliability required
+- one container per POD (general practice) - no restriction - can have helper container- chaircar container - gets created/deleted along with main container
+- NO adding of additional containers to PODS to scale up
+- Will have it's own IP address and the node in which the pod is hosted will also have an IP
+CMDs
+kubectl run <<pod name>> --image=<<docker image>>     - gets a pod created
+kubectl get pods                                      - gets pod details with status, Ready = running containers in a pod/total containres in a pod
+kubectl get pods -o wide							- gets pod details with Node and Pod IP address 
+kubectl describe pod <<pod name>>                     - gets more details with POD/Node IP address, Container details, tags
+kubectl delete pod <<pod name>>
+kubectl run <<pod name> --image=<<docker image>> --dry-run=client -o yaml > pod.yaml  - to create an pod definition yml file without creating the pod
+kubectl edit pod <<pod name>>                     - to make changes to pod details
+kubectl replace --force -f <<Pod file name>>.yml           - to delete the existing pod and create a new one
+kubectl run <<pod name>> --image=<<docker image>> -- <<arg1>> <<arg2>>              - to create pod by passing the arguments
+kubectl run <<pod name>> --image=<<docker image>> --command -- <<cmd>> <<arg1>>     - to create pod by passing cmd + arguments
+kubectl logs -f <<pod name>> <<container name>>          - to get the logs of specific container in  pod
+kubectl get pods --selector <<label>>                   - to get the pod with the label 
+
+YAML
+- contains 
+	- Array/List  "-"  - order is important
+	- Map/Dictionary - Key value pairs (a: b) - order doesnt considered
+
+Environment Variables
+-----------------------
+
+spec:
+     containers:
+     - name:
+       image:
+       env:                                  // env comes inside the container
+         - name: <<variable>>                // key value pair
+           value: <<value>>
+         - name: <<variable>>                // values from config map
+           valueFrom:
+             configMapKeyRef:
+         - name: <<variable>>                // values from secrets
+           valueFrom:
+             secretKeyRef:	
+
+  Config Maps 
+ **************
+used to pass environment variables and values in a file
+Imperative:
+  kubectl create configmap <<configmapname>> --from-literal=<<key>>=<<value>> --from-literal=<<key>>=<<value>>
+  kubectl create configmap <<configmapname>> --from-file=<<path-to-file>>
+
+
+Declarative: filename: config-map.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  APP_COLOR: blue
+  APP_MODE: prod
+
+kubectl create -f config-map.yaml
+kubectl get configmap
+kubectl describe configmap <<Configmapname>>
+
+define configmaps in the pod definition
+
+envFrom:                     //from configmap which is already created
+  - configMapRef:
+      name: app-config
+
+
+env:                         // to only get specific variable 
+  - name: APP_COLOR
+    valueFrom: 
+      configMapKeyRef:
+        name: app-config
+        key: APP_COLOR
+
+volumes:                     // to declare the configs on a volume
+- name: app-config-value
+  configMap:
+    name: app-config
+
+NOTE: You cant edit the pod to change the environment variables. When you do so it will create a /tmp/<<pod filename>>.yaml file which can be used to make modification and create a pod out of it(delete the previous or existing pod before the new pod creation )
+kubectl replace --force -f /tmp/<<pod filename>>.yaml
+
+Secrets
+**********
+- used to pass secrets variables and values in a file
+- Any one access to pod can view the secret by decoding it 
+- secrets are no encrypted.. they are encoded
+
+Imperative:
+  kubectl create secret generic <<secretname>> --from-literal=<<key>>=<<value>> --from-literal=<<key>>=<<value>>
+  kubectl create secret generic <<secretname>> --from-file=<<path-to-file>>
+
+Declarative: filename: secret.yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+data:
+  DB_HOST: bXnklle[
+  DB_PASSWORD: oEjdnSKRk#
+
+echo -n "mysql" | base64   - bXnklle[    // to encode the secret values
+
+echo -n "bXnklle["  | base 64 --decode    // to decode the secret values
+
+kubectl create -f secret.yaml
+kubectl get secrets
+kubectl describe secrets <<secretname>>
+
+define secrets in the pod definition
+
+envFrom:                     //from secrets which is already created
+  - secretRef:
+      name: app-secret
+
+
+env:                         // to only get specific variable from the secret
+  - name: APP_COLOR
+    valueFrom: 
+      secretKeyRef:
+        name: app-config
+        key: APP_COLOR
+
+volumes:                     // to declare the secret on a volume -  each variable is created as a file with the value stored in it
+- name: app-config-value
+  secret:
+    secretName: app-config
+
+SecurityContext:
+****************
+ It is to provide pod or container level user privilages 
+  - Container will have user - default root
+  - Pod will have a user - default root
+  - Node will have a user
+
+spec:
+  securityContext:
+    capabilities:
+      add: ["SYS_TIME"]                 // add the pod level user the additional privilages
+  container:
+    -securityContext:
+       runAsUser: 1010                   //specify the container to run as 1010 user
+
+ kubectl exec ubuntu-sleeper -- whoami
+
+
+Service Accounts
+******************
+- Service accounts are used to authenticate one process with other using the kubernetes api
+- Service account also create a token(secret object) which needs to be used by the other application to authenticate
+- need to delete and create the pod when a service account changes are made (but not incase of deployment as any updates will trigger a rolling update
+
+CMD:
+kubectl create serviceaccount dashboard-sa
+kubectl get serviceaccount
+kubectl describe serviceaccount dashboard-sa   // contains the token name which is a secret object
+kubectl describe secret dashboard-sa-token-kbbdm  // to view the contents of the secret created by the service account
+
+When a pod is created it will create a volume mount with the default token(secret) and service account
+
+pod-def.yaml
+
+spec:
+  containers:
+    - name: mypod
+      image: nginx
+  serviceAccountName: dashboard-sa
+
+
+Resource Limits:
+***************
+- to set CPU and memory usages for the container
+- if CPU limit is crossed, POD with threshold it
+- if Memory limit is crossed, the POD will terminate and recreate
+
+Pod-def.yml
+spec:
+  containers:
+  - resources:
+      request:
+        memory: "1Gi"
+        cpu: 1
+      limits:
+        memory: "2Gi"
+        cpu: 2
+
+Taint - Taint is set on the Node to allow only the pods with the tolerance to the taint on the nodes can run on the nodes 
+Tolerance - Tolerance is kept on the Pods and so that they can be launched in the nodes with the taint. but this doesnot garantee that the pod with the tolerance always goes on the node with taint.. the pod can also go to other nodes 
+Node selector: to specify a pod to be launched in a specific node matching the tag. the node should be tagged first and then used the nodeSelector in the container to specify the label
+Node affinity:  is to specify complex matching patterns for the pod to go to a specific node.
+
+
+POD Creation - using YAML - file name: pod-def.yml
+*****************
+apiVersion: v1					// must
+kind: Pod					// must - defined words
+metadata:					// must
+	name: myapp-pod				// Must Name
+	labels:					// can have any key value pairs
+		app: myapp
+		type: front-end
+spec:						// must - specifications
+	containers:
+	- name: <<conainer name>>
+	  image: <<Image Name>>
+       command: ["<<parameters>>"]           // to pass parameters to the ENTRYPOINT
+       args: ["<<arguments>>"]               // to pass arguments to the CMD statement 
+
+
+CMD -  to create/apply a pod 
+ kubectl create -f pod-def.yml
+ kubectl apply -f pod-def.yml
+
+
+Controller
+------------
+Replication Controller/Replica Set
+- High availability, 
+	- used to create declared number of new Pods
+	- for a single pod - it takes care of creating new Pod when existing pod gets corrupted
+- load balancing and scaling
+	- it spans accross multiple nodes 
+- If more pods are created than the replicas, the replicaset will terminate the new pod which is getting created
+
+
+Replication Controller Creation - using YAML - file name: rc-def.yml
+************************
+apiVersion: v1					// must
+kind: ReplicationController			// must - defined words
+metadata:					// must
+	name: myapp-rc				// Must Name
+	labels:					// can have any key value pairs
+		app: myapp
+		type: front-end
+spec:
+	- template:							// Template of the POD to be created
+		metadata:					
+			name: myapp-pod				
+			labels:					
+				app: myapp
+				type: front-end
+		spec:						
+			containers:
+				- name: <<conainer name>>
+				  Image: <<Image Name>>				
+	- replicas: <<number of replicas>                                //replicas to be created
+
+CMD
+ kubectl create -f rc-def.yml
+ kubectl get replicationcontroller
+
+
+ReplicaSet Creation - using YAML - file name: rs-def.yml
+**************************
+apiVersion: apps/v1				// must - different from RC
+kind: ReplicaSet				// must - defined words
+metadata:					// must
+	name: myapp-rs				// Must Name
+	labels:					// can have any key value pairs
+		app: myapp
+		type: front-end
+spec:
+	- template:							// Template of the POD to be created
+		metadata:					
+			name: myapp-pod				
+			labels:					
+				app: myapp
+				type: front-end                 // PODS Template label should match with the selector label 
+		spec:						
+			containers:
+				- name: <<conainer name>>
+				  Image: <<Image Name>>				
+	- replicas: <<number of replicas>                                //replicas to be created
+	- selector:				// must - different from RC - used for handling replications which are not created as part of the replicaset 
+		matchLabels:			// looks for matching labels for the ReplicaSet to handle 
+			type: front-end
+
+
+CMD
+ kubectl create -f rs-def.yml
+ kubectl get replicaset  or kubectl get rs
+ kubectl delete replicaset myapp-rs
+ kubectl edit replicaset myapp-rs               // to update the replicaset running file and the effect is immidiate  
+ kubectl replace -f rs-def.yml       		// to run the updated rs-def.yml and run
+ kubectl scale --replicas=6 -f rs-def.yml 	// to run the updated replicas option but rs-def.yml will not be updated
+ kubectl scale --replicas=6 replicaset myapp-rs  // to run the updated replicas option but rs-def.yml will not be updated
+ kubectl explain <<pods/replicasets>>                    // help text
+
+
+Deployment
+--------------
+- Used for
+   - deploy multiple instances
+   - rolling updates 
+   - roll back option
+   - pause -> Make changes -> Apply changes
+- Deployment is higher in the hierarchy
+- Deployment -> replicaset -> Pods -> containers
+- deploy-def.yml file is similar to rs-def.yml file with kind as Deployment
+
+Deployment Creation - using YAML - file name: deploy-def.yml
+***********************
+apiVersion: apps/v1				// must 
+kind: Deployment   				// must - defined words
+metadata:					// must
+	name: myapp-deploy			// Must Name
+	labels:					// can have any key value pairs
+		app: myapp
+		type: front-end
+spec:
+	- template:							// Template of the POD to be created
+		metadata:					
+			name: myapp-pod				
+			labels:					
+				app: myapp
+				type: front-end
+		spec:						
+			containers:
+				- name: <<conainer name>>
+				  Image: <<Image Name>>				
+	- replicas: <<number of replicas>                                //replicas to be created
+	- selector:				
+		matchLabels:			// looks for matching labels for the ReplicaSet to handle 
+			type: front-end
+
+
+CMD
+ kubectl create -f deploy-def.yml
+ kubectl get deployments
+ kubectl get all 				// to get all the objects created - deployment/replicaset/pods
+ kubectl apply -f deploy-def.yml 		// to update the deployment
+ kubectl apply -f deploy-def.yml --record       // to record the cause of the deployment in rollout history "Change Cause"
+
+Rollout Command
+CMD
+ kubectl rollout status deployment/myapp-deploy               // to check the rollout status of all the replicasets
+ kubectl rollout history deployment/myapp-deploy		// history of deployments
+
+Deployment Strategy
+- Recreate Strategy - Application downtime - delete all old versions get the new versions created
+- Rolling Update - default - no downtime
+
+ kubectl set image deployment/myapp-deploy \ nginx=nginx:1.9.1      - to update the image version but deploy-def file will not get updated
+
+- Rolling updates - in the deployment a new replica set is created and new versions of the pods are created by taking down the old pod version in old replica set
+- you can rollback to previous version of the Pod in kubernetes
+
+  kubectl rollout undo deployment/myapp-deploy 			// to roll back to previous version
+
+Stateful Sets:
+***************
+Usecase:
+when we want to create one pod as master and other pod as slave's how do we identify the master pod (in Databases) 
+when we want the pods to be launched in an orderly fashion(one after the other) rather than starting all of them at the same time.
+When we want unique name for the Pod to refer in any process (pod name or IP or DNS will not be same with deployment i.e. new pod comes it will have different IP,name from its previous deleted pod
+
+Stateful set is similar to Deployments except the kind is "StatefulSet" and specify "servicename: mysql_h" which is a headless service
+
+We can specify the headless service by specifying "clusterIP:None". this will help in creating a service without any load balancer but creates a constant DNS name with as
+<<podname>>.<<headless service name>>.<<namespace>>.svc.cluster.local
+
+CMD
+kubectl create -f statfulset-def.yaml
+kubectl scale statefulset mysql --replicas=5   // pods will be created one after the other
+kubectl sclae statefulset mysql --replicas=3   // pods will be deleted from the latest pod first
+kubectl delete statefulset mysql              // all pods will be deleted in the reverse order of their creation
+ 
+
+
+Networking
+------------
+- each POD have unique IP address in a Node
+- Each Node will have a unique IP address in a Cluster
+- but different Nodes can have the same IP address for the PODs
+- Kubernetes does not handle networking.. 
+- Cluster Networking
+	- All Pods can communicate to one another without NAT
+	- All Nodes can communicate with Containers and viceversa without NAT
+- Routing softwares are used in cluster to be able to set unique different IP's for Nodes and Pods(cisco, cilium, flannel, vmware nsx, calico)
+
+Services
+---------
+- Enable communication between components
+- acts as a load balancer
+- spans across all the nodes in the cluster and handles the request from the user with differnt IP's of the nodes but a common port number of service
+- NodePort Service - listens to the request on a Port of the Node and sends it to the port of the Pod
+	- Target Port - port number of the POD
+	- Port - Service Port number
+	- Node Port - 30000 - 32767 Port Numbers of the Node
+	- when new pods are added, no changes are required as the app in myapp-service matches with myapp-pod
+     - When new nodes are added, no changes are required as the service spans across all the nodes and uses the same port
+
+Laptop(<<ip address>>) -> Nodes(<<ip address:portnumber>>) -> service(<<ip addresss:portnumber>>) -> pod(<<ip address:portnumber>>)
+Once service is setup we can use our laptop to curl into the pod using "curl <<Node ip address>>:<<Node Port Number>>"
+Services act as loadbalancers using random algorithm and sessionAffinity: Yes
+
+CMD:
+kubectl expose pod redis --port=6379 --name redis-service --dry-run=client -o yaml
+
+NodePort Creation - using YAML - file name: nodeport-def.yml
+******************
+NodePort is use specifically for external connectivity
+
+apiVersion: v1					// must 
+kind: Service   				// must - defined words
+metadata:					// must
+	name: myapp-service			// Must Name
+spec:
+	type: NodePort				// Unique Node port def
+	ports: 
+		- targetPort: 80		// Pod Port number 
+		  port: 80			// must - service port number
+		  nodeport: 30008		// Node port number
+	selector:				// must 
+		app: myapp
+		type: front-end		
+
+CMD
+ kubectl create -f nodeport-def.yml
+ kubectl get services					// Gets the service details with Cluster IP and Port details of node and service
+ 
+
+Cluster IP - Virtual IP for communication between server
+*************
+	- if there are multiple POD running the same application like a DB or Front-end or backend. we need to have a single point of reference rather than multiple PODs for the application to work. Cluster IP helps with it. It give one IP:port for each set of similar pods (same labels)
+ClusterIP is the default port type if not specified and is used for internal connectivity
+
+Cluster IP Creation - using YAML- file name: cluster-def.yml
+
+apiVersion: v1					// must 
+kind: Service   				// must - defined words
+metadata:					// must
+	name: myapp-service1			// Must Name
+spec:
+	type: ClusterIP				// Unique for Cluster IP def
+	ports: 
+		- targetPort: 80		// Pod Port number 
+		  port: 80			// must - service port number
+	selector				// must 
+		app: myapp
+		type: front-end		
+
+
+LoadBalancer - Only worked with Cloud native load balancers
+*************
+
+Works similar to NodePort.. but if there are multiple nodes on which same application is hosted on pods. we will have multiple <<Node IP address>>:<<Single port>> which will give the same access. Load Balancer helps to take these multiple nodes/ports to a single IP:port or URL
+
+apiVersion: v1					// must 
+kind: Service   				// must - defined words
+metadata:					// must
+	name: myapp-service			// Must Name
+spec:
+	type: LoadBalancer				// Unique Node port def
+	ports: 
+		- targetPort: 80		// Pod Port number 
+		  port: 80			// must - service port number
+		  nodeport: 30008		// Node port number
+	selector:				// must 
+		app: myapp
+		type: front-end		
+
+
+Ingress :
+-------
+- used for network trafficing based on path or domain/host names. it is used to handle multiple services and eliminates the need to have proxy server which as an intermediate between the service(Nodeport/load balancer) to a DNS service
+- it bring the configuration of the path or domain/hostnames into the kubernetes rather than maintaining outside.
+- Ingress are limited to Namespace.
+- It contains 
+	- Ingress Controller 
+              - an external software to handle the network traffic like GCE, Nginx-controller, contour, HAproxy, trafik, Istio
+              - It needs a deployment, service, configMap and ServiceAccount
+          
+	- Ingress Resources - a configuration file to handle multiple path and domain/host names
+
+ingress_path.yaml
+*****************
+apiVersion: extension/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-wear-watch
+spec:
+  rules:                                                   // define multiple rules array
+    http:
+       paths:                                              // Path is an array with services
+         - path: /wear
+           backend:
+             serviceName: wear-service
+             servicePort: 80
+         - path: /watch
+           backend:
+             serviceName: watch-service
+             servicePort: 80
+CMD:
+kubectl create -f ingress_path.yaml
+kubectl get ingress
+kubectl describe ingress ingress-wear-watch
+
+Note: need to setup service default-http-backend:80 for default path
+
+ingress_host.yaml
+*****************
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-wear-watch
+spec:
+  rules:
+    - host: wear.myonlineshop.com
+      http:
+        paths:
+          - backend:
+		    serviceName: wear-service
+              servicePort: 80
+    - host: watch.myonlineshop.com
+      http:
+        paths:
+          - backend:
+              serviceName: watch-service
+        	    servicePort: 80
+
+Network Policy:
+---------------
+ - Ingress - input to a application/API/DB - request
+ - Egress - output from an application to connect to other application -  not the response
+- Inside the Cluster all the pods of the cluster are free to communicate with each other 
+- Network policy is used to allow specific pods with respect to ingress or egress (similar SG in AWS)
+- the return traffic (response) is always allowed
+
+network-policy.yaml
+*******************
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy                   //Specifies Network Policy
+metadata: 
+  name: db-policy
+spec:
+  podSelector:                        // Pod on which the NetworkPolicy apply
+    matchLabels:
+      role: db
+  policeType:
+  - ingress                           // Policy type - array
+  ingress:                              // policy type with details ingress - from , egress - to
+  - from:
+    - podSelector:                     // Pod from which traffic is allowed with port details
+        matchLabels:
+          name: api-pod
+      namespaceSelector:               // OPTIONAL - pod from namespace prod is allowed
+        matchLabels:
+          name: prod
+    - ipBlock:                        // OPTIONAL - for the server outside kubernetes to access
+        cidr: 192.168.5.10/32          
+    ports:
+    - protocol: TCP
+      port: 3306
+
+kubectl create -f network-policy.yaml
+kubectl get netpol
+
+
+Multi-container Pod
+-------------------
+- Having multiple containers in a single pod (Array)
+- They share the common network, volume and lifecycle
+There are three types:
+- Sidecar - logging agent
+- Adaptor - container which has logic to standardize the output of different main containers to stream the data out
+- Ambassador - to use a container which will proxy the main container for different environments.. i.e. main application(one container) connecting to Dev/Test/Prod Environments 
+
+initContainer
+*************
+- runs only once during the life of the Pod
+- it must complete succesfully before the main container is run
+- if it fails, it restarts the pod until successfully done
+
+Readiness and Liveness Probes
+-----------------------------
+- When the container is up, the status of it comesup as ready. but the application inside the container may not be ready or may take sometime to warmup or come online before serving the traffic.
+- readiness probe are used to set the status of the container based on the application readiness 
+- liveness probe are used to check the health of the application at some frequency and restart the container if need 
+
+
+spec:
+  containers:
+   - readinessProbe:    or   livenessProbe          //for an API
+	   httpGet:
+          path: /api/ready
+          port: 8080
+        initialDelaySeconds: 10         // to add a delay for the status
+        periodSeconds: 5                // to specify the frequency 
+        failureThreshold: 8             // to specify the success/failure attempts
+
+
+   - readinessProbe:    or   livenessProbe            // for a database
+       tcpSocker:
+         port: 3306
+  
+   - readinessProbe:   or   livenessProbe            // for running commands to validate
+       exec:
+         command:
+           - cat
+           - /app/is_ready
+
+
+Jobs
+-----
+- Pods are used to run the application containers continuously 
+- when a particular task is defined in pod with an end state, the pod will be created recurringly doing the task again and again
+   - this is because restartPolicy: Always is always set for the Pod. which can be also take the value "Never" to run only one
+- Job kind is used to trigger the task for one time run.
+
+job-definition.yaml
+*******************
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: math
+spec:
+  completions: 3                                 // to specify the successfull completion counts of the jobs - triggeres three pods in sequence and runs
+  parallelism: 3                                 // runs three pods in parallel
+  template:
+    spec:
+      container:
+        - name: math-add
+          image: ubuntu
+          command: ['expr', '3','+','2']
+      restartPolicy: Never
+
+
+CMD
+kubectl create -f job-definition.yaml
+kubectl get jobs                                - job status
+kubectl logs <<job name>>                      - output of the job
+kubectl delete <<job name>>                    -  delete the job and the associated Pod
+
+
+Cron Jobs:
+**********
+- to schedule the kubernetes jobs
+
+cronjob.yaml
+apiVersion: batch/v1betal
+kind: CronJob
+metadata:
+  name: cron-job
+spec:
+  schedule: "*/1 * * * * "                       // * * * * * *  - min hrs day mnth week
+  jobTemplate: 
+    spec:
+      completions: 3
+      parallelism: 3                                 // runs three pods in parallel
+      template:
+        spec:
+          container:
+            - name: math-add
+              image: ubuntu
+              command: ['expr', '3','+','2']
+          restartPolicy: Never
+
+
+Volumes:
+---------
+- Persistant storage space which is stored on a disk
+- each pod can comeup, spin a container, do the process and delete the pod - which will also delete the data
+- To store the data we can use volumes and mount the volume on to the pod to store the data
+- all these volumes are storage solutions like AWS EBS or Filesystem.. ect
+
+volume-mount.yaml
+*****************
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: random-num
+spec:
+  containers:
+    - image: alpine
+      name: alpine
+      command: ["/bin/sh", "-c"]
+      args: ["shuf -i 0-100 -n 1 >> /opt/number.out;"]
+      volumeMounts:                                            //to mount the volume in the pod
+      - mountPath: /opt                                        // pod will write the data to the /opt inside the container
+        name: data-volume
+  volumes:                                                    // creating a volume with /data as path
+    - name: data-volume
+      hostPath:
+        path: /data
+        type: Directory
+
+Problem with Volumes - we need to dedicate the storage space by user for each pod specifically. which may not be feasible as pods go live and down.
+So we would use Persistent Volume and Persistent Volume Claims to centralize the storage 
+
+Persistent Volume
+*******************
+- is used to reserve the Volumes on the storage of the cluster
+- generally assigned by the storage manager.
+
+
+pv-definition.yaml
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name:  pv-vol
+spec:
+  accessModes:
+    - ReadWriteOnce               //ReadOnlyMany , ReadWriteOnce, ReadWriteMany
+  capacity:
+    storage: 1Gi
+  awsElasticBlockStore:
+    volumeId: <<volume Id>>
+    fsType: ext4
+
+
+CMD
+kubectl create -f pv-definition.yml
+kubectl get persistentvolume
+
+
+Persistent Volume Claims
+************************
+- is to claim the persistent volume created by storage admin by the Pod
+- PVC and PV are two different objects
+- Persistent Volume and Persistent Volume Claims have one to one mapping with Binding 
+- PVC will bind with PV by validating the properties and requests(access mode, storage space)
+- PVC will be in Pending if PV is not available
+- if PVC is has less storage and bound to the a PV with high storage.. the remaining storage in PV cant be used.
+
+pvc-definition.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myclaim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+
+
+CMD
+kubectl create -f pvc-definition.yaml
+kubectl get persistentvolumeclaim                        // will specify the PV to which PVC is bound to 
+kubectl delete persistentvolumeclaim myclaim             // to delete PCV but PV status will depend on 
+                                                           PersistentVolumeReclaimPolicy: Retain/Delete/Recycle
+use the PVC in the Pod
+
+Spec:
+  Containers:
+    - volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: myclaim
+
+
+Storage Class:
+**************
+Draw back of PV is that someone need to provision enough storage space for the PV to be created. on cloud as storage is unlimited. we can define the PV on dynamic bases as we need them by using storage class.
+
+sc-definition.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: google-storage
+provisioner: kubernetes.io/gce-pd
+
+The above storage class will create storage in google cloud and PVC can use it.
+it still will create a PV when the PVC happens
+
+pvc-definition:
+spec:
+  storageClassName: google-storage
+
+
+
+Kubernetes on AWS/GKE
+---------------------
+Sample Project : https://github.com/kodekloudhub/example-voting-app
+k8s-specifications folder for deployments/services for cloud
+
+Create VPC
+
+aws cloudformation create-stack --region us-east-1 --stack-name my-eks-vpc-stack --template-url https://s3.us-west-2.amazonaws.com/amazon-eks/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml
+
+
+Cluster Role - eks-cluster-role-trust-policy.json
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "eks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+
+
+aws iam create-role --role-name myAmazonEKSClusterRole --assume-role-policy-document file://"eks-cluster-role-trust-policy.json"
+
+
+aws iam attach-role-policy --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy --role-name myAmazonEKSClusterRole
+
+
+aws eks update-kubeconfig --region us-east-1 --name example-voting-app
+
+
+Node Role - pod-execution-role-trust-policy.json
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Condition": {
+         "ArnLike": {
+            "aws:SourceArn": "arn:aws:eks:us-east-1:024820172827:fargateprofile/example-voting-app/*"
+         }
+      },
+      "Principal": {
+        "Service": "eks-fargate-pods.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+
+
+aws iam create-role --role-name AmazonEKSFargatePodExecutionRole --assume-role-policy-document file://"pod-execution-role-trust-policy.json"
+
+aws iam attach-role-policy --policy-arn arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy --role-name AmazonEKSFargatePodExecutionRole
+
+
+aws eks update-kubeconfig --region us-east-1 --name example-voting-app
